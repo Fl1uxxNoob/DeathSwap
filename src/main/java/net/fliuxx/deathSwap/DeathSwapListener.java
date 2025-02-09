@@ -1,7 +1,9 @@
 package net.fliuxx.deathSwap;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -44,11 +46,18 @@ public class DeathSwapListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        // Se un giocatore entra mentre una DeathSwap è in corso, lo mettiamo in modalità spettatore
-        if(DeathSwapManager.getInstance().isGameActive()) {
-            Player p = event.getPlayer();
-            p.setGameMode(GameMode.SPECTATOR);
-            p.sendMessage(ChatColor.YELLOW + "Una DeathSwap è in corso, non puoi partecipare ora.");
+        Player p = event.getPlayer();
+        if (DeathSwapManager.getInstance().isGameActive()) {
+            // Se il giocatore non era già nella partita (activePlayers), lo porta allo spawn.
+            if (!DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
+                String spawnWorldName = DeathSwap.getInstance().getConfig().getString("spawnWorldName", "world");
+                double spawnX = DeathSwap.getInstance().getConfig().getDouble("spawn.x", 0);
+                double spawnY = DeathSwap.getInstance().getConfig().getDouble("spawn.y", 64);
+                double spawnZ = DeathSwap.getInstance().getConfig().getDouble("spawn.z", 0);
+                World spawnWorld = Bukkit.getWorld(spawnWorldName);
+                p.teleport(new org.bukkit.Location(spawnWorld, spawnX, spawnY, spawnZ));
+                p.sendMessage(ChatColor.RED + "La DeathSwap è in corso, non puoi partecipare.");
+            }
         }
     }
 }

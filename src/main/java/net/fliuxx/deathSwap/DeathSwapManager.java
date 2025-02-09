@@ -3,6 +3,7 @@ package net.fliuxx.deathSwap;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.command.ConsoleCommandSender;
@@ -26,8 +27,11 @@ public class DeathSwapManager {
     private BukkitTask countdownTask;
     private BukkitTask victoryCheckTask;
 
-    // Set degli UUID dei giocatori partecipanti
-    private Set<UUID> activePlayers = new HashSet<>();
+    // Set degli UUID dei giocatori partecipanti alla DSW
+    private final Set<UUID> activePlayers = new HashSet<>();
+
+    // Variabile temporanea per il giocatore escluso in questo round
+    private UUID excludedPlayerThisRound = null;
 
     // Classe helper per rappresentare le coordinate di un chunk
     private static class ChunkCoordinate {
@@ -58,9 +62,14 @@ public class DeathSwapManager {
         return instance;
     }
 
-    // Getter per il nome del mondo, utile per la scoreboard
+    // Getter per activePlayers (usato dalla scoreboard e dai listener)
+    public Set<UUID> getActivePlayers() {
+        return activePlayers;
+    }
+
+    // Getter per il nome del mondo della DSW (usato dalla scoreboard)
     public String getDeathSwapWorldName() {
-        return deathSwapWorldName;
+        return DeathSwap.getInstance().getConfig().getString("deathSwapWorldName", "DeathSwapWorld");
     }
 
     public boolean isGameActive() {
@@ -71,42 +80,47 @@ public class DeathSwapManager {
         return worldGenerating;
     }
 
-    // Rimuove un giocatore (ad esempio, dopo la morte)
+    // Rimuove un giocatore (ad es. dopo la morte, ma non quando esce dal server)
     public void removePlayer(UUID uuid) {
         activePlayers.remove(uuid);
     }
 
-    // Restituisce true se la location è considerata "sicura"
+    // Controlla se una location è "sicura": i blocchi per piedi e testa devono essere aria,
+    // e il blocco sotto deve essere solido e non pericoloso.
     private boolean isSafe(Location loc) {
         loc = loc.clone();
-        // Ottieni il blocco in cui il giocatore starebbe (piedi) e il blocco sopra (testa)
-        org.bukkit.block.Block feet = loc.getBlock();
-        org.bukkit.block.Block head = loc.clone().add(0, 1, 0).getBlock();
-        // Ottieni il blocco sotto i piedi (terra di appoggio)
-        org.bukkit.block.Block ground = loc.clone().add(0, -1, 0).getBlock();
-        // I blocchi in cui stare il giocatore devono essere aria
-        if (!feet.getType().isAir() || !head.getType().isAir()) {
+        // Blocchi per piedi e testa
+        if (!loc.getBlock().getType().isAir() || !loc.clone().add(0, 1, 0).getBlock().getType().isAir()) {
             return false;
         }
-        // Il blocco di terra deve essere solido e non pericoloso (non acqua, lava, ecc.)
-        if (!ground.getType().isSolid() ||
-                ground.getType().toString().contains("WATER") ||
-                ground.getType().toString().contains("LAVA")) {
+        // Blocco di sotto
+        Material groundType = loc.clone().add(0, -1, 0).getBlock().getType();
+        if (!groundType.isSolid() ||
+                groundType.toString().contains("WATER") ||
+                groundType.toString().contains("LAVA")) {
             return false;
         }
         return true;
     }
 
-    // Ritorna una Location sicura data una coordinata X, Z; se non trovata restituisce null
+    // Ritorna una Location sicura per i coordinate x, z; se il blocco iniziale è pericoloso (acqua o lava),
+    // tenta fino a 10 volte di trovare una posizione più alta.
     private Location getSafeLocation(World world, int x, int z) {
-        Location candidate = world.getHighestBlockAt(x, z).getLocation().add(0, 1, 0);
-        return isSafe(candidate) ? candidate : null;
+        Location loc = world.getHighestBlockAt(x, z).getLocation().add(0, 1, 0);
+        int attempts = 0;
+        while ((loc.getBlock().getType().toString().contains("WATER") ||
+                loc.getBlock().getType().toString().contains("LAVA")) && attempts < 10) {
+            loc.add(0, 1, 0);
+            attempts++;
+        }
+        return isSafe(loc) ? loc : null;
     }
 
-    // Avvia la DeathSwap: forza i giocatori in SURVIVAL, svuota l'inventario e genera il mondo
+    // Avvia la DeathSwap: svuota gli inventari dei giocatori online, forza la modalità SURVIVAL,
+    // e registra i loro UUID in activePlayers. Se il numero è sufficiente, genera il mondo DSW.
     public void startDeathSwap(Player starter) {
         activePlayers.clear();
-        // Forza tutti i giocatori online in SURVIVAL e svuota il loro inventario (inclusa l'armatura)
+        // Per tutti i giocatori online, forza SURVIVAL e svuota inventario/armatura/off-hand.
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p.getGameMode() != GameMode.SURVIVAL) {
                 p.setGameMode(GameMode.SURVIVAL);
@@ -127,19 +141,18 @@ public class DeathSwapManager {
         }
 
         teleportRadius = DeathSwap.getInstance().getConfig().getInt("teleportRadius", 500);
-        swapIntervalSeconds = DeathSwap.getInstance().getConfig().getInt("swapTimeSeconds", 120); // default 2 minuti
+        swapIntervalSeconds = DeathSwap.getInstance().getConfig().getInt("swapTimeSeconds", 120);
         deathSwapWorldName = DeathSwap.getInstance().getConfig().getString("deathSwapWorldName", "DeathSwapWorld");
 
-        // Genera il mondo: se Multiverse-Core è presente, usa i suoi comandi; altrimenti usa WorldCreator
+        // Genera il mondo: se MV-Core è presente, usa i suoi comandi; altrimenti, usa WorldCreator.
         Bukkit.getScheduler().runTask(DeathSwap.getInstance(), () -> {
             if (Bukkit.getPluginManager().getPlugin("Multiverse-Core") != null) {
                 ConsoleCommandSender console = Bukkit.getServer().getConsoleSender();
                 Bukkit.dispatchCommand(console, "mv create " + deathSwapWorldName + " normal");
-                // Dopo alcuni tick, prova a ottenere il riferimento al mondo
                 Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
                     deathSwapWorld = Bukkit.getWorld(deathSwapWorldName);
                     if (deathSwapWorld == null) {
-                        DeathSwap.getInstance().getLogger().severe("Impossibile caricare il mondo " + deathSwapWorldName + " creato con Multiverse-Core.");
+                        DeathSwap.getInstance().getLogger().severe("Impossibile caricare il mondo " + deathSwapWorldName + " creato con MV-Core.");
                     }
                 }, 20L);
             } else {
@@ -153,7 +166,8 @@ public class DeathSwapManager {
         });
     }
 
-    // Countdown iniziale di 10 secondi; al termine, verifica che il mondo sia pronto, teletrasporta i giocatori e avvia il round di swap.
+    // Countdown iniziale di 10 secondi: al termine, verifica che il mondo sia pronto,
+    // teletrasporta i giocatori in DSW, mostra la scoreboard e avvia il round di swap.
     private void startCountdown() {
         final int[] countdown = {10};
         countdownTask = Bukkit.getScheduler().runTaskTimer(DeathSwap.getInstance(), () -> {
@@ -172,7 +186,6 @@ public class DeathSwapManager {
                 countdownTask.cancel();
                 ensureWorldReady(() -> {
                     teleportPlayers();
-                    // Mostra la scoreboard e avvia il timer
                     ScoreboardManager.getInstance().showScoreboard();
                     startSwapRound();
                     startVictoryCheckTask();
@@ -181,7 +194,7 @@ public class DeathSwapManager {
         }, 0L, 20L);
     }
 
-    // Verifica che il mondo sia pronto controllando il chunk dello spawn; se non lo è, riprova tra 20 tick.
+    // Controlla che il mondo sia pronto verificando il chunk dello spawn; se non caricato, riprova tra 20 tick.
     private void ensureWorldReady(Runnable callback) {
         if (deathSwapWorld == null) {
             Bukkit.getLogger().info("Il mondo è null, riprovo tra 20 tick...");
@@ -200,8 +213,8 @@ public class DeathSwapManager {
         }
     }
 
-    // Prepara le coordinate di teletrasporto per ciascun giocatore, assicurandosi che siano "sicure".
-    // Raccoglie inoltre l'insieme dei chunk da caricare e li carica gradualmente.
+    // Prepara le coordinate di teletrasporto per ciascun giocatore, assicurandosi che siano sicure.
+    // Raccoglie anche l'insieme dei chunk da caricare e li carica gradualmente.
     private void prepareTeleportLocations(Consumer<Map<UUID, Location>> callback) {
         Map<UUID, Location> locations = new HashMap<>();
         Set<ChunkCoordinate> chunksToLoad = new HashSet<>();
@@ -212,21 +225,20 @@ public class DeathSwapManager {
             if (p != null && p.isOnline() && deathSwapWorld != null) {
                 int radius = teleportRadius * (index + 1);
                 Location safeLoc = null;
-                // Prova fino a 10 volte per trovare una posizione sicura
+                // Tenta fino a 10 volte di trovare una posizione sicura
                 for (int attempt = 0; attempt < 10; attempt++) {
                     int rx = rand.nextInt(radius * 2) - radius;
                     int rz = rand.nextInt(radius * 2) - radius;
                     safeLoc = getSafeLocation(deathSwapWorld, rx, rz);
                     if (safeLoc != null) break;
                 }
-                // Se non si trova una posizione sicura, usa il fallback (getHighestBlockAt)
                 if (safeLoc == null) {
                     int rx = rand.nextInt(radius * 2) - radius;
                     int rz = rand.nextInt(radius * 2) - radius;
                     safeLoc = deathSwapWorld.getHighestBlockAt(rx, rz).getLocation().add(0, 1, 0);
                 }
                 locations.put(uuid, safeLoc);
-                // Aggiungi i chunk relativi a questa posizione (area 2x2)
+                // Aggiunge i chunk relativi a questa posizione (area 2x2)
                 int chunkX = safeLoc.getBlockX() >> 4;
                 int chunkZ = safeLoc.getBlockZ() >> 4;
                 chunksToLoad.add(new ChunkCoordinate(chunkX, chunkZ));
@@ -239,7 +251,7 @@ public class DeathSwapManager {
         loadChunksGradually(chunksToLoad, () -> callback.accept(locations));
     }
 
-    // Carica gradualmente (1 chunk per tick) l'insieme di chunk specificato per evitare blocchi sul server.
+    // Carica gradualmente (1 chunk per tick) l'insieme di chunk per evitare blocchi.
     private void loadChunksGradually(Set<ChunkCoordinate> chunks, Runnable callback) {
         Iterator<ChunkCoordinate> iterator = chunks.iterator();
         final BukkitTask[] taskHolder = new BukkitTask[1];
@@ -268,8 +280,9 @@ public class DeathSwapManager {
 
     // Avvia un round di swap:
     // - Dopo (swapIntervalSeconds - 15) secondi viene inviato a tutti il messaggio "Mancano 15 secondi allo swap"
-    // - Dopo (swapIntervalSeconds - 5) secondi inizia un countdown di 5 secondi (visualizzato come title in grande, bold e italic)
-    // - Al termine del countdown viene eseguito lo swap e viene avviato il prossimo round.
+    // - Dopo (swapIntervalSeconds - 5) secondi, prima di iniziare il countdown, controlla se il numero di giocatori eleggibili è dispari.
+    //   Se sì, sceglie uno da escludere, inviando a quel giocatore sia un messaggio in chat che un title "NON SWAPPATO" in grande.
+    // - Infine, avvia un countdown di 5 secondi (visualizzato come title in grande, bold e italic) e al termine esegue lo swap.
     private void startSwapRound() {
         if (!gameActive) {
             return;
@@ -282,8 +295,28 @@ public class DeathSwapManager {
                 p.sendMessage(ChatColor.YELLOW + "Mancano 15 secondi allo swap!");
             }
         }, messageDelay);
+
+        // Prima di avviare il countdown, calcola se c'è un giocatore da escludere.
         Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
             if (!gameActive) return;
+            List<Player> eligible = new ArrayList<>();
+            for (UUID uuid : activePlayers) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline() && p.getGameMode() == GameMode.SURVIVAL) {
+                    eligible.add(p);
+                }
+            }
+            if (eligible.size() % 2 != 0 && eligible.size() > 1) {
+                excludedPlayerThisRound = eligible.get(new Random().nextInt(eligible.size())).getUniqueId();
+                Player excluded = Bukkit.getPlayer(excludedPlayerThisRound);
+                if (excluded != null) {
+                    excluded.sendMessage(ChatColor.RED + "Non verrai swapato in questo round!");
+                    excluded.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "" + ChatColor.ITALIC + "NON SWAPPATO", "", 10, 70, 20);
+                }
+            } else {
+                excludedPlayerThisRound = null;
+            }
+
             new org.bukkit.scheduler.BukkitRunnable() {
                 int counter = 5;
                 @Override
@@ -293,7 +326,7 @@ public class DeathSwapManager {
                         return;
                     }
                     for (Player p : Bukkit.getOnlinePlayers()) {
-                        p.sendTitle("", ChatColor.BOLD + "" + ChatColor.ITALIC + ChatColor.RED + counter, 0, 20, 0);
+                        p.sendTitle("", ChatColor.RED + "" + ChatColor.BOLD + "" + ChatColor.ITALIC + counter, 0, 20, 0);
                     }
                     counter--;
                     if (counter < 0) {
@@ -308,8 +341,7 @@ public class DeathSwapManager {
         }, countdownDelay);
     }
 
-    // Esegue lo swap: raccoglie i giocatori in modalità SURVIVAL; se il numero è dispari, uno viene escluso (e avvisato in rosso)
-    // e poi per ogni coppia di giocatori scambia le posizioni.
+    // Esegue lo swap: raccoglie i giocatori eleggibili; se un giocatore è escluso per il round, viene saltato.
     private void performSwap() {
         if (!gameActive) {
             return;
@@ -318,16 +350,14 @@ public class DeathSwapManager {
         for (UUID uuid : activePlayers) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline() && p.getGameMode() == GameMode.SURVIVAL) {
+                // Escludi il giocatore escluso per questo round
+                if (excludedPlayerThisRound != null && uuid.equals(excludedPlayerThisRound)) continue;
                 players.add(p);
             }
         }
-        if (players.size() % 2 != 0 && players.size() > 1) {
-            Player nonSwapped = players.get(new Random().nextInt(players.size()));
-            nonSwapped.sendMessage(ChatColor.RED + "Non verrai swapato in questo round!");
-            players.remove(nonSwapped);
-        }
         Collections.shuffle(players);
         for (int i = 0; i < players.size(); i += 2) {
+            if(i+1 >= players.size()) break;
             Player p1 = players.get(i);
             Player p2 = players.get(i + 1);
             Location loc1 = p1.getLocation();
@@ -337,26 +367,31 @@ public class DeathSwapManager {
             p1.sendMessage(ChatColor.GREEN + "Sei stato swapato con " + p2.getName());
             p2.sendMessage(ChatColor.GREEN + "Sei stato swapato con " + p1.getName());
         }
+        excludedPlayerThisRound = null; // reset per il round successivo
     }
 
-    // Controlla ogni secondo se rimane un solo giocatore in modalità SURVIVAL nel mondo della DeathSwap.
+    // Controlla ogni secondo se rimane un solo giocatore in modalità SURVIVAL nel mondo della DSW.
     // Se sì, il vincitore riceve un title "HAI VINTO!" (in grande, bold e italic) e in chat viene inviato
-    // anche il messaggio "<Nome player> HA VINTO LA DEATHSWAP!", mentre agli altri viene mostrato un title con "HA VINTO <nome player>!".
+    // anche il messaggio "<Nome player> HA VINTO LA DEATHSWAP!".
     private void startVictoryCheckTask() {
         victoryCheckTask = Bukkit.getScheduler().runTaskTimer(DeathSwap.getInstance(), () -> {
             int count = 0;
             Player winner = null;
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (deathSwapWorld != null && p.getWorld().equals(deathSwapWorld) && p.getGameMode() == GameMode.SURVIVAL) {
+            for (UUID uuid : activePlayers) {
+                // Usa getOfflinePlayer per includere anche i giocatori offline che hanno partecipato
+                Player p = Bukkit.getPlayer(uuid);
+                // Se online, controlla lo stato; se offline, considerali come "MORTI"
+                if (p != null && p.isOnline() && p.getWorld().equals(deathSwapWorld) && p.getGameMode() == GameMode.SURVIVAL) {
                     count++;
                     winner = p;
                 }
             }
             if (count <= 1 && winner != null) {
-                winner.sendTitle(ChatColor.BOLD + "" + ChatColor.ITALIC + ChatColor.GOLD + "HAI VINTO!", "", 10, 70, 20);
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (!p.equals(winner)) {
-                        p.sendTitle("", ChatColor.BOLD + "" + ChatColor.ITALIC + ChatColor.GOLD + "HA VINTO " + winner.getName() + "!", 10, 70, 20);
+                winner.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "" + ChatColor.ITALIC + "HAI VINTO!", "", 10, 70, 20);
+                for (UUID uuid : activePlayers) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null && !p.equals(winner)) {
+                        p.sendTitle("", ChatColor.GOLD + "" + ChatColor.BOLD + "" + ChatColor.ITALIC + "HA VINTO " + winner.getName() + "!", 10, 70, 20);
                     }
                 }
                 Bukkit.broadcastMessage(ChatColor.GOLD + winner.getName() + " HA VINTO LA DEATHSWAP!");
@@ -382,8 +417,9 @@ public class DeathSwapManager {
         double spawnZ = DeathSwap.getInstance().getConfig().getDouble("spawn.z", 0);
         World spawnWorld = Bukkit.getWorld(spawnWorldName);
         Location spawnLoc = new Location(spawnWorld, spawnX, spawnY, spawnZ);
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (deathSwapWorld != null && p.getWorld().equals(deathSwapWorld)) {
+        for (UUID uuid : activePlayers) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.getWorld().equals(deathSwapWorld)) {
                 p.teleport(spawnLoc);
                 if (p.getGameMode() == GameMode.SPECTATOR) {
                     p.setGameMode(GameMode.SURVIVAL);
