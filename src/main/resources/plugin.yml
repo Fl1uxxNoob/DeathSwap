@@ -1,0 +1,22 @@
+name: DeathSwap
+version: '1.0'
+main: net.fliuxx.deathSwap.DeathSwap
+api-version: '1.20'
+description: "Plugin per la modalità DeathSwap"
+author: "Fl1uxxNoob"
+commands:
+  dsw:
+    description: "Comandi per la DeathSwap"
+    aliases: [deathswap]
+    usage: "/dsw <start|stop|gui|credits>"
+permissions:
+  deathswap.admin.start:
+    description: "Permesso per avviare la DeathSwap."
+    default: op
+  deathswap.admin.stop:
+    description: "Permesso per fermare la DeathSwap."
+    default: op
+  deathswap.admin.gui:
+    description: "Permesso per aprire la GUI di configurazione."
+    default: op
+

@@ -1,0 +1,15 @@
+# Configurazione DeathSwap
+
+spawnWorldName: world
+spawn:
+  x: 0
+  y: 64
+  z: 0
+
+deathSwapWorldName: DeathSwapWorld
+teleportRadius: 500
+swapTimeSeconds: 120
+
+messages:
+  preparation: "&6PREPARAZIONE IN CORSO"
+  win: "&e{player} HA VINTO!"
