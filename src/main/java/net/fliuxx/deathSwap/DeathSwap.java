@@ -23,7 +23,6 @@ public class DeathSwap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new DeathSwapListener(), this);
         getServer().getPluginManager().registerEvents(new DeathSwapGUI(), this); // Registrazione della GUI (una sola volta)
 
-        // Registra la GUI (in questo esempio il listener viene registrato dalla classe stessa quando si apre la GUI)
         // Inizializza il DeathSwapManager (singleton)
         DeathSwapManager.init();
 

@@ -1,10 +1,10 @@
 package net.fliuxx.deathSwap;
 
+import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.ChatColor;
 
 public class DeathSwapCommand implements CommandExecutor {
     @Override
@@ -58,9 +58,6 @@ public class DeathSwapCommand implements CommandExecutor {
                 break;
             case "credits":
                 sender.sendMessage(ChatColor.GOLD + "Developed by Fl1uxxNoob!");
-                break;
-            default:
-                sender.sendMessage(ChatColor.RED + "Sottocomando non riconosciuto. Usa: start, stop, gui, credits.");
                 break;
         }
         return true;

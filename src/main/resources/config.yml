@@ -1,25 +1,25 @@
-spawnWorldName: world
-spawn:
-  x: 0
-  y: 64
-  z: 0
+  spawnWorldName: world
+  spawn:
+    x: 0
+    y: 64
+    z: 0
 
-deathSwapWorldName: DeathSwapWorld
-teleportRadius: 500
-swapTimeSeconds: 120
+  deathSwapWorldName: DeathSwapWorld
+  teleportRadius: 500
+  swapTimeSeconds: 120
 
-scoreboard:
-  title: "&l&oDeathSwap"
-  timer-prefix: "&aDurata: "
-  player-status-format: "&b{player}: {status}"
+  scoreboard:
+      title: "&l&oDeathSwap"
+      timer-prefix: "&aDurata: "
+      alive-text: "&aVivi: "   # Testo usato nella scoreboard per indicare il numero di giocatori vivi
 
-messages:
-  preparation: "&6PREPARAZIONE IN CORSO"
-  win-title: "&6&l&oHAI VINTO!"
-  win-other-title: "&e&l&oHA VINTO {player}!"
-  not-swapped: "&cNon verrai swapato in questo round!"
-  not-swapped-title: "&c&l&oNON SWAPPATO"
-  join-denied: "&cLa DeathSwap è in corso, non puoi partecipare."
-  swap-warning: "&eMancano 15 secondi allo swap!"
-  countdown-title: "&c&l&o{time}"
-  victory-chat: "&6{player} HA VINTO LA DEATHSWAP!"
+  messages:
+    preparation: "&6PREPARAZIONE IN CORSO"
+    win-title: "&6&l&oHAI VINTO!"
+    win-other-title: "&e&l&oHA VINTO {player}!"
+    not-swapped: "&cNon verrai swapato in questo round!"
+    not-swapped-title: "&c&l&oNON SWAPPATO"
+    join-denied: "&cLa DeathSwap è in corso, non puoi partecipare."
+    swap-warning: "&eMancano 15 secondi allo swap!"
+    countdown-title: "&c&l&o{time}"
+    victory-chat: "&6{player} HA VINTO LA DEATHSWAP!"
