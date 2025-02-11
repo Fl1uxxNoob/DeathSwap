@@ -10,7 +10,7 @@ public class DeathSwapCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if(args.length < 1) {
-            sender.sendMessage(ChatColor.RED + "Uso: /" + label + " <start|stop|gui|credits>");
+            sender.sendMessage(ChatColor.RED + "Uso: /" + label + " <start|stop|gui|credits|spectate|spawn>");
             return true;
         }
         String sub = args[0].toLowerCase();
@@ -58,6 +58,45 @@ public class DeathSwapCommand implements CommandExecutor {
                 break;
             case "credits":
                 sender.sendMessage(ChatColor.GOLD + "Developed by Fl1uxxNoob!");
+                break;
+            case "spectate":
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(ChatColor.RED + "Solo i giocatori possono eseguire questo comando.");
+                    return true;
+                }
+                Player p = (Player) sender;
+                if (!DeathSwapManager.getInstance().isGameActive()) {
+                    p.sendMessage(ChatColor.RED + "Non c'è nessuna DeathSwap in corso.");
+                    return true;
+                }
+                // Non permettere ai partecipanti attivi di attivare la modalità spectate
+                if (DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
+                    p.sendMessage(ChatColor.RED + "Non puoi spectare perché stai giocando la DeathSwap.");
+                    return true;
+                }
+                SpectateMode.activateSpectator(p);
+                break;
+            case "spawn":
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(ChatColor.RED + "Solo i giocatori possono eseguire questo comando.");
+                    return true;
+                }
+                p = (Player) sender;
+                if (!DeathSwapManager.getInstance().isGameActive()) {
+                    p.sendMessage(ChatColor.RED + "Non c'è nessuna DeathSwap in corso.");
+                    return true;
+                }
+                // Non permettere ai partecipanti attivi di usare /spawn
+                if (DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
+                    p.sendMessage(ChatColor.RED + "Non puoi usare questo comando mentre stai giocando la DeathSwap.");
+                    return true;
+                }
+                // Verifica che il giocatore sia in modalità spectate
+                if (!DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+                    p.sendMessage(ChatColor.RED + "Non sei in modalità spectate.");
+                    return true;
+                }
+                SpectateMode.deactivateSpectator(p);
                 break;
         }
         return true;

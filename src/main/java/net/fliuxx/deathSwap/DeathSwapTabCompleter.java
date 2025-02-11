@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 
 public class DeathSwapTabCompleter implements TabCompleter {
     // I sottocomandi disponibili per /dsw
-    private static final List<String> SUBCOMMANDS = Arrays.asList("start", "stop", "gui", "credits");
+    private static final List<String> SUBCOMMANDS = Arrays.asList("start", "stop", "gui", "credits", "spectate", "spawn");
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {

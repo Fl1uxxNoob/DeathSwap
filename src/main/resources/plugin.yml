@@ -8,7 +8,7 @@ commands:
   dsw:
     description: "Comandi per la DeathSwap"
     aliases: [deathswap]
-    usage: "/dsw <start|stop|gui|credits>"
+    usage: "/dsw <start|stop|gui|credits|spectate|spawn>"
 permissions:
   deathswap.admin.start:
     description: "Permesso per avviare la DeathSwap."
