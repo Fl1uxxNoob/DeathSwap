@@ -181,6 +181,10 @@ public class DeathSwapManager {
                     deathSwapWorld = Bukkit.getWorld(deathSwapWorldName);
                     if (deathSwapWorld == null) {
                         DeathSwap.getInstance().getLogger().severe("Impossibile caricare il mondo " + deathSwapWorldName + " creato con MV-Core.");
+                    } else {
+                        // Esegui i comandi gamerule
+                        Bukkit.dispatchCommand(console, "mv gamerule doDaylightCycle false " + deathSwapWorldName);
+                        Bukkit.dispatchCommand(console, "mv gamerule doWeatherCycle false " + deathSwapWorldName);
                     }
                 }, 20L);
             } else {
