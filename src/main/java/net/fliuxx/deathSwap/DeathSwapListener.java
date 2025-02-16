@@ -4,11 +4,16 @@ import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.inventory.ItemStack;
 
 public class DeathSwapListener implements Listener {
 
@@ -82,11 +87,35 @@ public class DeathSwapListener implements Listener {
             DeathSwapManager.getInstance().removePlayer(p.getUniqueId());
         }
         p.sendMessage(ChatColor.RED + "Sei morto! Aspetta il prossimo game per giocare ancora.");
-        // Se il giocatore muore mentre era spectate, forziamo il respawn per riportarlo allo spawn
+
+        // Forza il respawn del giocatore
         Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
             p.spigot().respawn();
         }, 1L);
+
+        // Rimuovi la scoreboard (con un delay per evitare conflitti con eventuali task periodici)
+        Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
+            p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+        }, 5L);
+
+        // Dopo un breve delay, controlla se nel mondo della DeathSwap rimangono 0 giocatori in Survival
+        Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
+            int count = 0;
+            World dsWorld = Bukkit.getWorld(DeathSwapManager.getInstance().getDeathSwapWorldName());
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getWorld().equals(dsWorld) && online.getGameMode() == GameMode.SURVIVAL) {
+                    count++;
+                }
+            }
+            if (count == 0 && !DeathSwapManager.getInstance().isTieDeclared()) {
+                DeathSwapManager.getInstance().setTieDeclared(true);
+                Bukkit.broadcastMessage(ChatColor.YELLOW + "Pareggio! Nessun giocatore in vita, la DeathSwap termina.");
+                DeathSwapManager.getInstance().stopDeathSwap(false);
+            }
+        }, 5L);
     }
+
+
 
     // Quando un giocatore si disconnette, viene rimosso dalla partita
     @EventHandler
@@ -101,6 +130,7 @@ public class DeathSwapListener implements Listener {
         }
         if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
             DeathSwapManager.getInstance().removeSpectator(p.getUniqueId());
+            p.getInventory().clear();
         }
     }
 
@@ -120,6 +150,10 @@ public class DeathSwapListener implements Listener {
         if (!DeathSwapManager.getInstance().isGameActive()) return;
         if (event.getPlayer() instanceof Player) {
             Player p = (Player) event.getPlayer();
+            // Se l'inventario che si sta aprendo è la GUI "Teletrasporto", non cancellare l'evento
+            if (event.getView().getTitle().equals(ChatColor.DARK_PURPLE + "Teletrasporto")) {
+                return;
+            }
             if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
                 event.setCancelled(true);
             }
@@ -199,6 +233,114 @@ public class DeathSwapListener implements Listener {
                 teleportToSpawn(p);
                 p.sendMessage(ChatColor.RED + "Sei uscito dalla modalità spectate perché hai lasciato il mondo della DeathSwap.");
             }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerInteractGUI(PlayerInteractEvent event) {
+        if (!DeathSwapManager.getInstance().isGameActive()) {
+            return;
+        }
+
+        Player p = event.getPlayer();
+        if (!DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) return;
+
+        // Controlla che l'azione sia un right-click
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        if (p.getInventory().getItemInMainHand() != null && p.getInventory().getItemInMainHand().hasItemMeta()) {
+            String display = p.getInventory().getItemInMainHand().getItemMeta().getDisplayName();
+            if (display.contains("Teletrasporta")) {
+                // Apri la GUI per la teletrasportazione
+                SpectateGUI.openGUI(p);
+                event.setCancelled(true);
+            } else if (display.contains("Esci dalla modalità spectate")) {
+                // Disattiva la modalità spectate
+                SpectateMode.deactivateSpectator(p);
+                event.setCancelled(true);
+            }
+        }
+    }
+
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!DeathSwapManager.getInstance().isGameActive()) {
+            return;
+        }
+
+        // Se l'inventario aperto è la GUI "Teletrasporto", gestiscilo normalmente
+        if (event.getView().getTitle().equals(ChatColor.DARK_PURPLE + "Teletrasporto")) {
+            event.setCancelled(true);
+            if (!(event.getWhoClicked() instanceof Player)) return;
+            Player spectator = (Player) event.getWhoClicked();
+            if (event.getCurrentItem() == null || !event.getCurrentItem().hasItemMeta()) return;
+            String display = event.getCurrentItem().getItemMeta().getDisplayName();
+            String targetName = ChatColor.stripColor(display);
+            Player target = spectator.getServer().getPlayerExact(targetName);
+            if (target != null && target.isOnline()) {
+                spectator.teleport(target.getLocation());
+                spectator.sendMessage(ChatColor.GREEN + "Teletrasportato da " + target.getName());
+                spectator.closeInventory();
+            } else {
+                spectator.sendMessage(ChatColor.RED + "Il giocatore non è più disponibile.");
+            }
+            return;
+        }
+
+        // Se il giocatore è in modalità spectate, annulla ogni interazione con gli item speciali
+        if (event.getWhoClicked() instanceof Player) {
+            Player p = (Player) event.getWhoClicked();
+            if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && clicked.hasItemMeta() && clicked.getItemMeta().hasDisplayName()) {
+                    String display = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+                    // Se il display name corrisponde agli item speciali, blocca l'interazione
+                    if (display.equalsIgnoreCase("Teletrasporta") || display.equalsIgnoreCase("Esci dalla modalità spectate")) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!DeathSwapManager.getInstance().isGameActive()) {
+            return;
+        }
+
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player p = (Player) event.getWhoClicked();
+        if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onItemDrop(PlayerDropItemEvent event) {
+        if (!DeathSwapManager.getInstance().isGameActive()) {
+            return;
+        }
+
+        Player p = event.getPlayer();
+        if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    // Impedisce di raccogliere item da terra se il giocatore è in spectate
+    @EventHandler
+    public void onEntityPickupItem(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player)) return;
+        Player p = (Player) event.getEntity();
+        if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+            event.setCancelled(true);
         }
     }
 

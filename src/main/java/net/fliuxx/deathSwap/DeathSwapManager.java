@@ -23,6 +23,7 @@ public class DeathSwapManager {
     private BukkitTask victoryCheckTask;
     private BukkitTask swapMessageTask = null;
     private BukkitTask swapCountdownTask = null;
+    private boolean tieDeclared = false;
 
 
     // Set degli UUID dei giocatori partecipanti alla DSW (definiti al momento dello start)
@@ -97,6 +98,14 @@ public class DeathSwapManager {
         return worldGenerating;
     }
 
+    public boolean isTieDeclared() {
+        return tieDeclared;
+    }
+
+    public void setTieDeclared(boolean tieDeclared) {
+        this.tieDeclared = tieDeclared;
+    }
+
     // In questa versione non rimuoviamo i giocatori da activePlayers,
     // in modo che compaiano sempre nella scoreboard (stato "MORTO" se non in SURVIVAL).
     public void removePlayer(UUID uuid) {
@@ -136,12 +145,14 @@ public class DeathSwapManager {
             starter.sendMessage(ChatColor.RED + "La DeathSwap è già in corso.");
             return;
         }
+        tieDeclared = false;
         activePlayers.clear();
         // Registra tutti i giocatori online come partecipanti.
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p.getGameMode() != GameMode.SURVIVAL) {
                 p.setGameMode(GameMode.SURVIVAL);
             }
+            p.setHealth(p.getMaxHealth());
             p.getInventory().clear();
             p.getInventory().setArmorContents(null);
             p.getInventory().setItemInOffHand(null);
@@ -486,6 +497,7 @@ public class DeathSwapManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.getWorld().equals(deathSwapWorld)) {
                 p.teleport(spawnLoc);
+                p.getInventory().clear();
                 if (p.getGameMode() == GameMode.SPECTATOR) {
                     p.setGameMode(GameMode.SURVIVAL);
                 }
@@ -505,6 +517,7 @@ public class DeathSwapManager {
                     online.showPlayer(DeathSwap.getInstance(), p);
                 }
                 p.teleport(spawnLoc);
+                p.getInventory().clear();
                 p.sendMessage(ChatColor.GREEN + "La DeathSwap è terminata, ora sei stato riportato allo spawn.");
             }
         }
