@@ -214,24 +214,33 @@ public class DeathSwapListener implements Listener {
     }
 
     @EventHandler
-    public void onPlayerChangedWorld(org.bukkit.event.player.PlayerChangedWorldEvent event) {
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
         if (!DeathSwapManager.getInstance().isGameActive()) {
             return;
         }
         Player p = event.getPlayer();
-        // Se il giocatore è in spectate e lascia il mondo della DeathSwap, forzalo ad uscire da spectate
-        if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
-            String dsWorld = DeathSwapManager.getInstance().getDeathSwapWorldName();
-            if (!p.getWorld().getName().equalsIgnoreCase(dsWorld)) {
-                DeathSwapManager.getInstance().removeSpectator(p.getUniqueId());
-                p.setGameMode(GameMode.SURVIVAL);
-                p.setAllowFlight(false);
-                p.setFlying(false);
+        String dsWorldName = DeathSwapManager.getInstance().getDeathSwapWorldName();
+        if (!p.getWorld().getName().equalsIgnoreCase(dsWorldName)) {
+            // Se il giocatore è in modalità spectate, forzalo ad uscire dalla modalità spectate
+            if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
+                SpectateMode.deactivateSpectator(p);
                 for (Player online : Bukkit.getOnlinePlayers()) {
                     online.showPlayer(DeathSwap.getInstance(), p);
                 }
                 teleportToSpawn(p);
                 p.sendMessage(ChatColor.RED + "Sei uscito dalla modalità spectate perché hai lasciato il mondo della DeathSwap.");
+            }
+            // Se il giocatore è attivo, fallo perdere e riportalo allo spawn
+            else if (DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
+                DeathSwapManager.getInstance().removePlayer(p.getUniqueId());
+                p.sendMessage(ChatColor.RED + "Hai lasciato il mondo della DeathSwap. Sei eliminato dalla partita!");
+                p.setGameMode(GameMode.SURVIVAL);
+                p.setHealth(p.getMaxHealth());
+                p.setFoodLevel(20);
+                p.setSaturation(20);
+                p.getInventory().clear();
+
+                teleportToSpawn(p);
             }
         }
     }
@@ -341,6 +350,21 @@ public class DeathSwapListener implements Listener {
         Player p = (Player) event.getEntity();
         if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
+        // Se non c'è una DeathSwap in corso, lasciamo passare tutto
+        if (!DeathSwapManager.getInstance().isGameActive()) {
+            return;
+        }
+        Player p = event.getPlayer();
+        // Se il giocatore non è in activePlayers e non è in spectatorPlayers, blocca la chat
+        if (!DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())
+                && !DeathSwapManager.getInstance().getSpectatorPlayers().contains(p.getUniqueId())) {
+            event.setCancelled(true);
+            p.sendMessage(ChatColor.RED + "Non puoi chattare perché non stai partecipando alla DeathSwap.");
         }
     }
 

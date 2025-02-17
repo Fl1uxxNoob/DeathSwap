@@ -502,6 +502,9 @@ public class DeathSwapManager {
             if (p != null && p.getWorld().equals(deathSwapWorld)) {
                 p.teleport(spawnLoc);
                 p.getInventory().clear();
+                p.setHealth(p.getMaxHealth());
+                p.setFoodLevel(20);
+                p.setSaturation(20);
                 if (p.getGameMode() == GameMode.SPECTATOR) {
                     p.setGameMode(GameMode.SURVIVAL);
                 }
