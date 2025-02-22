@@ -77,6 +77,7 @@ public class DeathSwapListener implements Listener {
         if (!DeathSwapManager.getInstance().isGameActive()) {
             return;
         }
+        event.setDeathMessage(null);
         Player p = event.getEntity();
         // Se il giocatore è in modalità spectate, rimuovilo
         if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
@@ -86,6 +87,7 @@ public class DeathSwapListener implements Listener {
         else if (DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
             DeathSwapManager.getInstance().removePlayer(p.getUniqueId());
         }
+        Bukkit.broadcastMessage(ChatColor.RED + p.getName() + " è morto");
         p.sendMessage(ChatColor.RED + "Sei morto! Aspetta il prossimo game per giocare ancora.");
 
         // Forza il respawn del giocatore
@@ -361,12 +363,12 @@ public class DeathSwapListener implements Listener {
         }
         Player p = event.getPlayer();
         // Se il giocatore non è in activePlayers e non è in spectatorPlayers, blocca la chat
-        if (!DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())
-                && !DeathSwapManager.getInstance().getSpectatorPlayers().contains(p.getUniqueId())) {
+        if (!DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
             event.setCancelled(true);
             p.sendMessage(ChatColor.RED + "Non puoi chattare perché non stai partecipando alla DeathSwap.");
         }
     }
+
 
     // Metodo helper per teletrasportare il giocatore allo spawn
     private void teleportToSpawn(Player p) {

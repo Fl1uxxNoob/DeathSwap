@@ -66,7 +66,7 @@ public class SpectateMode {
                 p.setGameMode(GameMode.ADVENTURE);
                 p.setAllowFlight(true);
                 p.setFlying(true);
-                p.sendMessage(ChatColor.GREEN + "Sei in modalità spectate. Per uscire clicca il red dye.");
+                p.sendMessage(ChatColor.GREEN + "Sei in modalità spectate. Per uscire clicca il colorante rosso.");
                 // Svuota l'inventario e assegna gli oggetti spettatore nel hotbar:
                 p.getInventory().clear();
                 // Posiziona la bussola nello slot 0 (il primo slot)

@@ -52,7 +52,7 @@ public class ScoreboardManager {
     public void updateScoreboard() {
         Scoreboard sb = Bukkit.getScoreboardManager().getNewScoreboard();
         // Leggi le impostazioni dal config
-        String title = ChatColor.translateAlternateColorCodes('&', DeathSwap.getInstance().getConfig().getString("scoreboard.title", "&c&l&oDeathSwap"));
+        String title = ChatColor.translateAlternateColorCodes('&', DeathSwap.getInstance().getConfig().getString("scoreboard.title", "&l&oDeathSwap"));
         String timerPrefix = ChatColor.translateAlternateColorCodes('&', DeathSwap.getInstance().getConfig().getString("scoreboard.timer-prefix", "&aDurata: "));
 
         Objective obj = sb.registerNewObjective("deathswap", "dummy", title);

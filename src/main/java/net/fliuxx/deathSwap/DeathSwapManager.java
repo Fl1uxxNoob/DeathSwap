@@ -3,6 +3,7 @@ package net.fliuxx.deathSwap;
 import org.bukkit.*;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
 
@@ -138,6 +139,15 @@ public class DeathSwapManager {
         return isSafe(loc) ? loc : null;
     }
 
+    private void giveStartingItems() {
+        for (UUID uuid : activePlayers) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline() && p.getWorld().equals(deathSwapWorld)) {
+                p.getInventory().addItem(new ItemStack(Material.COOKED_BEEF, 6));
+            }
+        }
+    }
+
     // Avvia la DSW: svuota gli inventari dei giocatori online, forza la modalità SURVIVAL,
     // e registra i loro UUID in activePlayers.
     public void startDeathSwap(Player starter) {
@@ -221,6 +231,9 @@ public class DeathSwapManager {
                     ScoreboardManager.getInstance().showScoreboard();
                     startSwapRound();
                     startVictoryCheckTask();
+                    Bukkit.getScheduler().runTaskLater(DeathSwap.getInstance(), () -> {
+                        giveStartingItems();
+                    }, 20L);
                 });
             }
         }, 0L, 20L);
@@ -307,11 +320,6 @@ public class DeathSwapManager {
         });
     }
 
-    // Avvia un round di swap:
-    // - Dopo (swapIntervalSeconds - 15) secondi, invia il messaggio "Mancano 15 secondi allo swap" solo ai partecipanti eleggibili.
-    // - Dopo (swapIntervalSeconds - 5) secondi, controlla immediatamente i partecipanti eleggibili; se il numero è dispari,
-    //   sceglie immediatamente un giocatore da escludere, al quale viene inviato subito (chat e title) il messaggio "NON SWAPPATO".
-    // - Dopodiché, parte un countdown di 5 secondi (inviato solo ai partecipanti eleggibili) e, al termine, esegue lo swap.
     private void startSwapRound() {
         if (!gameActive) {
             return;
