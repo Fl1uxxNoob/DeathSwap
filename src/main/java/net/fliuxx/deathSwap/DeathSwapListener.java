@@ -5,10 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
@@ -129,10 +126,17 @@ public class DeathSwapListener implements Listener {
         // Rimuovi il giocatore sia se è attivo sia se è in spectate
         if (DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
             DeathSwapManager.getInstance().removePlayer(p.getUniqueId());
+            p.getInventory().clear();
+            p.setHealth(p.getMaxHealth());
+            p.setFoodLevel(20);
+            p.setSaturation(20);
         }
         if (DeathSwapManager.getInstance().isSpectator(p.getUniqueId())) {
             DeathSwapManager.getInstance().removeSpectator(p.getUniqueId());
             p.getInventory().clear();
+            p.setHealth(p.getMaxHealth());
+            p.setFoodLevel(20);
+            p.setSaturation(20);
         }
     }
 
@@ -366,6 +370,17 @@ public class DeathSwapListener implements Listener {
         if (!DeathSwapManager.getInstance().getActivePlayers().contains(p.getUniqueId())) {
             event.setCancelled(true);
             p.sendMessage(ChatColor.RED + "Non puoi chattare perché non stai partecipando alla DeathSwap.");
+        }
+    }
+
+    //DA TESTARE
+    @EventHandler
+    public void onEntityTarget(EntityTargetEvent event) {
+        if (event.getTarget() instanceof Player) {
+            Player target = (Player) event.getTarget();
+            if (DeathSwapManager.getInstance().isSpectator(target.getUniqueId())) {
+                event.setCancelled(true);
+            }
         }
     }
 
